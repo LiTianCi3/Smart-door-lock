@@ -24,8 +24,8 @@ u8 open = 0;
 u8 lock = 1; // 标志是否开锁成功
 //==========================eeprom
 u16 addr = 0x0000;
+u16 addr_error = 0x0020;
 int buf[6] = {0};
-
 int password[MAX_PASSWORD_LENGTH] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
 //==========================eeprom
 u8 action_state = 0;
@@ -143,6 +143,8 @@ void open_door()
     // 开门
     float angle;
     error = 1;
+    EEPROM_SectorErase(addr_error);        // 擦除
+    EEPROM_write_n(addr_error, &error, 2); // 写
     lock = 0;
     duty_value = 2000;
     dutyB.PWM6_Duty = duty_value * PERIOD / 20000.0;
@@ -178,6 +180,8 @@ char check_password()
     {
         printf("密码长度错误\n");
         error++;
+        EEPROM_SectorErase(addr_error);        // 擦除
+        EEPROM_write_n(addr_error, &error, 2); // 写
         password_length = 0;
         IPS_Init();
         OLED_Display_GB2312_string(0, 2, "密码错误");
@@ -193,6 +197,8 @@ char check_password()
             if (buf[i] != user_password[i])
             {
                 error++;
+                EEPROM_SectorErase(addr_error);        // 擦除
+                EEPROM_write_n(addr_error, &error, 2); // 写
                 printf("密码错误\n");
                 password_length = 0;
                 IPS_Init();
@@ -314,11 +320,13 @@ void user_input_password(char key)
 
 void handleHashKey()
 {
-    u8 i;
+    u8 i, error_temp;
     // 如果密码输错3次，则锁定
-    printf("error = %d\n", (int)error);
-    if (error > 3)
-    {   lock=1;
+    EEPROM_read_n(addr_error, &error_temp, 2);
+    printf("error_temp = %d\n", (int)error_temp);
+    if (error_temp > 3)
+    {
+        lock = 1;
         OLED_Clear();
         OLED_Display_GB2312_string(0, 0, "密码多次输错");
         OLED_Display_GB2312_string(0, 2, "请联系管理员");
@@ -329,7 +337,8 @@ void handleHashKey()
             delay_ms(250);
             delay_ms(250);
         }
-        while (lock);      
+        while (lock)
+            ;
     }
 
     if (open == 0 || open == 1)
@@ -446,7 +455,7 @@ void MK_on_keydown(u8 row, u8 col)
     COL = (int)col;
     key = keypad[ROW][COL];
     printf("key=%c\n", key);
-    key_value(key);    // 定义一个函数将按键按下后的信息传进去
+    key_value(key); // 定义一个函数将按键按下后的信息传进去
     // printf("第%d行第%d列按键按下\n", ROW + 1, COL + 1);
 }
 // 抬起的回调函数
@@ -455,11 +464,12 @@ void MK_on_keyup(u8 row, u8 col)
     // printf("第%d行第%d列按键抬起\n", (int)(row + 1), (int)(col + 1));
 }
 
-//定义一个初始化密码的函数
+// 定义一个初始化密码的函数
 void password_init()
-{   int init_password[6] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
-    EEPROM_SectorErase(addr); // 擦除
-    EEPROM_write_n(addr, init_password, 12); // 写
+{
+    int init_password[6] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
+    EEPROM_SectorErase(addr);                  // 擦除
+    EEPROM_write_n(addr, init_password, 12);   // 写
     OLED_Clear();
     OLED_Display_GB2312_string(0, 0, "初始化密码成");
     OLED_Display_GB2312_string(0, 2, "功!!!");
@@ -469,8 +479,8 @@ void password_init()
 
 void do_work(u8 dat)
 {
-    if (dat == 0x44)// 取消
-    { 
+    if (dat == 0x44) // 取消
+    {
         action_state = 0;
         IPS_Show();
         if (FPM383_cancel())
@@ -512,13 +522,16 @@ void do_work(u8 dat)
             action_state = 0;
             delay_s(2);
             IPS_Show();
-        }else if(action_state == 3){
+        }
+        else if (action_state == 3)
+        {
             OLED_Clear();
             OLED_Display_GB2312_string(0, 0, "已初始化密码");
             OLED_Display_GB2312_string(0, 2, "成功!!");
             password_init();
             action_state = 0;
-        }else
+        }
+        else
         {
             IPS_Show();
         }
@@ -526,7 +539,8 @@ void do_work(u8 dat)
     else if (dat == 0x21)
     { // 开门
         open_door();
-    }else if (dat == 0x05)
+    }
+    else if (dat == 0x05)
     {
         action_state = 1;
         OLED_Clear();
@@ -541,7 +555,9 @@ void do_work(u8 dat)
         OLED_Display_GB2312_string(0, 0, "是否确认清空");
         OLED_Display_GB2312_string(0, 2, "全部指纹?");
         printf("是否确认清空全部指纹? \n");
-    }else if(dat == 0x11){
+    }
+    else if (dat == 0x11)
+    {
         action_state = 3;
         OLED_Clear();
         OLED_Display_GB2312_string(0, 0, "是否确认初始");
@@ -558,10 +574,11 @@ void sys_init()
     // 初始化
     MK_init();
     FPM383_init();
-    Ultrasonic_init();//超声波
+    Ultrasonic_init(); // 超声波
     EA = 1;
-    //EEPROM_SectorErase(addr); // 擦除
-    //EEPROM_write_n(addr, password, 12); // 写
+    // EEPROM_SectorErase(addr); // 擦除
+    // EEPROM_write_n(addr, password, 12); // 写
+    EEPROM_write_n(addr_error, &error, 2); // 写
 }
 
 // 程序入口
@@ -698,25 +715,32 @@ void task_4() _task_ 4
 }
 
 void task_5() _task_ 5
-{   
-    char res;
+{
+    char res, error_temp;
     float distance;
-    while(1){
-        os_wait2(K_TMO, 50);
-        res = Ultrasonic_get_distance(&distance);
-        if (res == 0) {
-        //printf("距离为：%.2f cm\n", distance);
-        if(distance < 8){
-            os_wait2(K_TMO, 150);
-            if(distance < 8){
-                
-            open_door();
+    while (1)
+    {
+        EEPROM_read_n(addr_error, &error_temp, 2);
+        if (error_temp != 4)
+        {
+            os_wait2(K_TMO, 50);
+            res = Ultrasonic_get_distance(&distance);
+            if (res == 0)
+            {
+                // printf("距离为：%.2f cm\n", distance);
+                if (distance < 8)
+                {
+                    os_wait2(K_TMO, 150);
+                    if (distance < 8)
+                    {
+                        open_door();
+                    }
+                }
             }
+            else
+            {
+                printf("res = %d\n", (int)res);
             }
-        } else {
-        printf("res = %d\n", (int)res);
-        } 
-
-}
-
+        }
+    }
 }
