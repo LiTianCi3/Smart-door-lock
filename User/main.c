@@ -14,19 +14,52 @@
 #include "EEPROM.h"
 #include "Ultrasonic.h"
 
+/*	
+ *                                         ,s555SB@@&                          	
+ *                                      :9H####@@@@@Xi                        	
+ *                                     1@@@@@@@@@@@@@@8                       	
+ *                                   ,8@@@@@@@@@B@@@@@@8                      	
+ *                                  :B@@@@X3hi8Bs;B@@@@@Ah,                   	
+ *             ,8i                  r@@@B:     1S ,M@@@@@@#8;                 	
+ *            1AB35.i:               X@@8 .   SGhr ,A@@@@@@@@S                	
+ *            1@h31MX8                18Hhh3i .i3r ,A@@@@@@@@@5               	
+ *            ;@&i,58r5                 rGSS:     :B@@@@@@@@@@A               	
+ *             1#i  . 9i                 hX.  .: .5@@@@@@@@@@@1               	
+ *              sG1,  ,G53s.              9#Xi;hS5 3B@@@@@@@B1                	
+ *               .h8h.,A@@@MXSs,           #@H1:    3ssSSX@1                  	
+ *               s ,@@@@@@@@@@@@Xhi,       r#@@X1s9M8    .GA981               	
+ *               ,. rS8H#@@@@@@@@@@#HG51;.  .h31i;9@r    .8@@@@BS;i;          	
+ *                .19AXXXAB@@@@@@@@@@@@@@#MHXG893hrX#XGGXM@@@@@@@@@@MS        	
+ *                s@@MM@@@hsX#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&,      	
+ *              :GB@#3G@@Brs ,1GM@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@B,     	
+ *            .hM@@@#@@#MX 51  r;iSGAM@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@8     	
+ *          :3B@@@@@@@@@@@&9@h :Gs   .;sSXH@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:    	
+ *      s&HA#@@@@@@@@@@@@@@M89A;.8S.       ,r3@@@@@@@@@@@@@@@@@@@@@@@@@@@r    	
+ *   ,13B@@@@@@@@@@@@@@@@@@@5 5B3 ;.         ;@@@@@@@@@@@@@@@@@@@@@@@@@@@i    	
+ *  5#@@#&@@@@@@@@@@@@@@@@@@9  .39:          ;@@@@@@@@@@@@@@@@@@@@@@@@@@@;    	
+ *  9@@@X:MM@@@@@@@@@@@@@@@#;    ;31.         H@@@@@@@@@@@@@@@@@@@@@@@@@@:    	
+ *   SH#@B9.rM@@@@@@@@@@@@@B       :.         3@@@@@@@@@@@@@@@@@@@@@@@@@@5    	
+ *     ,:.   9@@@@@@@@@@@#HB5                 .M@@@@@@@@@@@@@@@@@@@@@@@@@B    	
+ *           ,ssirhSM@&1;i19911i,.             s@@@@@@@@@@@@@@@@@@@@@@@@@@S   	
+ *              ,,,rHAri1h1rh&@#353Sh:          8@@@@@@@@@@@@@@@@@@@@@@@@@#:  	
+ *            .A3hH@#5S553&@@#h   i:i9S          #@@@@@@@@@@@@@@@@@@@@@@@@@A.	
+ *	
+ *	
+ *    又看源码，看你妹妹呀！	
+ */
+
 #define MAX_PASSWORD_LENGTH 6
-int user_password[MAX_PASSWORD_LENGTH] = {0}; // 定义一个储存用户输入密码的数组
+unsigned int user_password[MAX_PASSWORD_LENGTH] = {0}; // 定义一个储存用户输入密码的数组
 char show_str[7] = {0};                       // spi屏幕上的隐藏密码
 u8 password_length = 0;
 u8 error = 1;
-int temp_password[MAX_PASSWORD_LENGTH] = {0}; // 定义一个用户修改密码的暂存数组
+unsigned int temp_password[MAX_PASSWORD_LENGTH] = {0}; // 定义一个用户修改密码的暂存数组
 u8 open = 0;
 u8 lock = 1; // 标志是否开锁成功
 //==========================eeprom
 u16 addr = 0x0000;
-u16 addr_error = 0x0020;
-int buf[6] = {0};
-int password[MAX_PASSWORD_LENGTH] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
+unsigned int buf[6] = {0};
+unsigned int password[MAX_PASSWORD_LENGTH] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
 //==========================eeprom
 u8 action_state = 0;
 u16 id = 0x0000;
@@ -143,8 +176,6 @@ void open_door()
     // 开门
     float angle;
     error = 1;
-    EEPROM_SectorErase(addr_error);        // 擦除
-    EEPROM_write_n(addr_error, &error, 2); // 写
     lock = 0;
     duty_value = 2000;
     dutyB.PWM6_Duty = duty_value * PERIOD / 20000.0;
@@ -180,8 +211,6 @@ char check_password()
     {
         printf("密码长度错误\n");
         error++;
-        EEPROM_SectorErase(addr_error);        // 擦除
-        EEPROM_write_n(addr_error, &error, 2); // 写
         password_length = 0;
         IPS_Init();
         OLED_Display_GB2312_string(0, 2, "密码错误");
@@ -197,8 +226,6 @@ char check_password()
             if (buf[i] != user_password[i])
             {
                 error++;
-                EEPROM_SectorErase(addr_error);        // 擦除
-                EEPROM_write_n(addr_error, &error, 2); // 写
                 printf("密码错误\n");
                 password_length = 0;
                 IPS_Init();
@@ -320,11 +347,8 @@ void user_input_password(char key)
 
 void handleHashKey()
 {
-    u8 i, error_temp;
-    // 如果密码输错3次，则锁定
-    EEPROM_read_n(addr_error, &error_temp, 2);
-    printf("error_temp = %d\n", (int)error_temp);
-    if (error_temp > 3)
+		u8 i;
+    if (error > 3)// 如果密码输错3次，则锁定
     {
         lock = 1;
         OLED_Clear();
@@ -406,7 +430,6 @@ void handleHashKey()
 
 void key_value(char key)
 {
-    u8 i;
     if (key >= '0' && key <= '9')
     {
         user_input_password(key);
@@ -467,7 +490,7 @@ void MK_on_keyup(u8 row, u8 col)
 // 定义一个初始化密码的函数
 void password_init()
 {
-    int init_password[6] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
+    unsigned int init_password[6] = {2, 3, 4, 5, 6, 7}; // 定义一个初始密码
     EEPROM_SectorErase(addr);                  // 擦除
     EEPROM_write_n(addr, init_password, 12);   // 写
     OLED_Clear();
@@ -577,8 +600,7 @@ void sys_init()
     Ultrasonic_init(); // 超声波
     EA = 1;
     // EEPROM_SectorErase(addr); // 擦除
-    // EEPROM_write_n(addr, password, 12); // 写
-    EEPROM_write_n(addr_error, &error, 2); // 写
+    EEPROM_write_n(addr, password, 12); // 写
 }
 
 // 程序入口
@@ -716,12 +738,11 @@ void task_4() _task_ 4
 
 void task_5() _task_ 5
 {
-    char res, error_temp;
+    char res;
     float distance;
     while (1)
     {
-        EEPROM_read_n(addr_error, &error_temp, 2);
-        if (error_temp != 4)
+        if (error != 4)
         {
             os_wait2(K_TMO, 50);
             res = Ultrasonic_get_distance(&distance);
